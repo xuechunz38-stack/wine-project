@@ -1,6 +1,6 @@
 # Wine Quality — Data Analysis, Pandas vs Polars, and Rust Ownership
 
-Week 1 of a three-week project. This repository contains a Pandas analysis of the
+Week 2 of a three-week project. This repository contains a Pandas analysis of the
 UCI wine-quality dataset, a Polars reimplementation with a performance
 comparison, and a Jupyter notebook experimenting with Rust's ownership system.
 
