@@ -237,27 +237,48 @@ from the eager benchmark above -- that is expected, not a discrepancy: the lazy
 pipeline applies the `alcohol > 11` filter before grouping, while the eager
 group-by benchmark groups the unfiltered table.
 
-## Rust ownership notebook
+## Rust notebook
 
-`rust_ownership.ipynb` runs on the [evcxr](https://github.com/evcxr/evcxr)
-kernel:
+`rust_vs_python_intro.ipynb` comes from the course repo
+(Kedar-V/data-processing-frameworks-demo) and runs on the evcxr kernel:
 
 ```bash
 cargo install evcxr_jupyter
 evcxr_jupyter --install
 ```
 
-The notebook walks through move semantics, `Copy` versus move, `clone`, ownership
-transfer across function boundaries, the borrowing rules, non-lexical lifetimes,
-`Drop`, and ownership inside a `Vec`. Cells marked **EXPECTED TO FAIL** are meant
-to produce compiler errors — `evcxr` prints the error as cell output and
-continues, so the notebook can be run top to bottom. Errors demonstrated:
+
+The notebook contrasts Python and Rust on `let` vs `let mut`, `b = a` (Python
+shares a reference, Rust moves ownership), and mutating a list while looping
+over it. Cells marked as expected to fail produce compiler errors; evcxr prints
+the error and continues, so the notebook runs top to bottom.
+
+### What I changed
+
+- Completed all five **Your turn** cells: string interpolation, an `if` cutoff
+  on rating counts, counting with an `if` inside a loop, adding `mut` to allow
+  reassignment, and removing then restoring `.clone()`.
+- Added a note explaining what removing `.clone()` produces and why.
+- Added a cell and note documenting a mismatch between a provided cell and the
+  text around it (below).
+
+### Errors demonstrated
 
 | Code | Meaning |
 |---|---|
+| `E0384` | assigning twice to an immutable binding |
 | `E0382` | use of a moved value |
-| `E0499` | two mutable borrows at once |
 | `E0502` | a mutable borrow while an immutable one is live |
+
+### A discrepancy I found
+
+The text above the loop-and-mutate cell says the key error is "cannot borrow
+`ratings` as mutable because it is also borrowed as immutable" (E0502), but the
+cell as written reports **E0382** instead. `for rating in ratings` calls
+`into_iter()`, which moves the vector, so compilation stops at the move before
+any borrow conflict can be detected. Looping over `&ratings` borrows instead of
+moving, and only then does E0502 appear. I added that variant as a separate
+cell with a note comparing the two rules.
 
 ## Next week
 
