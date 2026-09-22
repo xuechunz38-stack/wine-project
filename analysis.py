@@ -17,7 +17,7 @@ from pathlib import Path
 
 import matplotlib
 
-matplotlib.use("Agg")  
+matplotlib.use("Agg")  # write PNGs without needing a display
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -43,7 +43,7 @@ def banner(text: str) -> None:
     print(f"\n{'=' * 70}\n{text}\n{'=' * 70}")
 
 
-
+# ---------------------------------------------------------------- 1. import
 def load_data() -> pd.DataFrame:
     path = find_dataset()
     sep = detect_separator(path)
@@ -53,7 +53,7 @@ def load_data() -> pd.DataFrame:
     return df
 
 
-
+# --------------------------------------------------------------- 2. inspect
 def inspect(df: pd.DataFrame) -> None:
     banner("2. INSPECTING THE DATA")
 
@@ -82,7 +82,7 @@ def inspect(df: pd.DataFrame) -> None:
     print(pd.DataFrame({"count": counts, "share": (counts / len(df)).round(3)}))
 
 
-
+# ------------------------------------------------- 3. filtering and grouping
 def filter_and_group(df: pd.DataFrame) -> pd.DataFrame:
     banner("3. FILTERING AND GROUPING")
 
@@ -130,7 +130,7 @@ def filter_and_group(df: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
-
+# ---------------------------------------------------------------- 4. modelling
 def build_target(df: pd.DataFrame) -> pd.DataFrame:
     """Turn the 3-8 quality score into a binary 'good wine' label."""
     out = df.drop_duplicates().copy()
@@ -138,12 +138,49 @@ def build_target(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def explore_model(df: pd.DataFrame) -> pd.Series:
+def select_features(data: pd.DataFrame) -> list[str]:
+    """Numeric columns other than the target. Text columns such as `type` are skipped."""
+    return [
+        c for c in data.columns
+        if c not in ("quality", "good") and pd.api.types.is_numeric_dtype(data[c])
+    ]
+
+
+def majority_baseline(y: pd.Series) -> float:
+    """Accuracy of always predicting the most common class.
+
+    Written as max(p, 1 - p) rather than 1 - p: the latter silently assumes the
+    negative class is the majority, which is true for this dataset but not in
+    general (a unit test caught this on a positive-majority sample).
+    """
+    p = float(y.mean())
+    return max(p, 1.0 - p)
+
+
+def evaluate(model, X_test: pd.DataFrame, y_test: pd.Series) -> dict:
+    """Score a fitted classifier. Returned as a dict so tests can check the numbers."""
+    pred = model.predict(X_test)
+    proba = model.predict_proba(X_test)[:, 1]
+    return {
+        "accuracy": accuracy_score(y_test, pred),
+        "roc_auc": roc_auc_score(y_test, proba),
+        "predictions": pred,
+        "report": classification_report(
+            y_test, pred, target_names=["not good", "good"], zero_division=0
+        ),
+    }
+
+
+def explore_model(df: pd.DataFrame) -> dict:
+    """Train and evaluate both models.
+
+    Returns a dict with the baseline, per-model metrics and the random-forest
+    feature importances, so the results can be tested rather than only printed.
+    """
     banner("4. MACHINE LEARNING: IS THIS A GOOD WINE?")
 
     data = build_target(df)
-    feature_cols = [c for c in data.columns if c not in ("quality", "good")]
-    feature_cols = [c for c in feature_cols if pd.api.types.is_numeric_dtype(data[c])]
+    feature_cols = select_features(data)
 
     X = data[feature_cols]
     y = data["good"]
@@ -158,24 +195,23 @@ def explore_model(df: pd.DataFrame) -> pd.Series:
         X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
     )
 
-    baseline = 1 - y_test.mean()  
+    baseline = majority_baseline(y_test)
     print(f"\nMajority-class baseline accuracy: {baseline:.3f}")
     print("Any model has to beat this number to be worth anything.")
 
-    
+    # -- model A: logistic regression (needs scaling)
     logreg = make_pipeline(
         StandardScaler(),
         LogisticRegression(max_iter=2000, class_weight="balanced"),
     )
     logreg.fit(X_train, y_train)
-    pred_lr = logreg.predict(X_test)
+    lr = evaluate(logreg, X_test, y_test)
 
     print("\n--- Logistic regression ---")
-    print(f"accuracy: {accuracy_score(y_test, pred_lr):.3f}   "
-          f"ROC-AUC: {roc_auc_score(y_test, logreg.predict_proba(X_test)[:, 1]):.3f}")
-    print(classification_report(y_test, pred_lr, target_names=["not good", "good"]))
+    print(f"accuracy: {lr['accuracy']:.3f}   ROC-AUC: {lr['roc_auc']:.3f}")
+    print(lr["report"])
 
-    
+    # -- model B: random forest
     forest = RandomForestClassifier(
         n_estimators=300,
         random_state=RANDOM_STATE,
@@ -183,12 +219,11 @@ def explore_model(df: pd.DataFrame) -> pd.Series:
         n_jobs=-1,
     )
     forest.fit(X_train, y_train)
-    pred_rf = forest.predict(X_test)
+    rf = evaluate(forest, X_test, y_test)
 
     print("--- Random forest ---")
-    print(f"accuracy: {accuracy_score(y_test, pred_rf):.3f}   "
-          f"ROC-AUC: {roc_auc_score(y_test, forest.predict_proba(X_test)[:, 1]):.3f}")
-    print(classification_report(y_test, pred_rf, target_names=["not good", "good"]))
+    print(f"accuracy: {rf['accuracy']:.3f}   ROC-AUC: {rf['roc_auc']:.3f}")
+    print(rf["report"])
 
     importances = (
         pd.Series(forest.feature_importances_, index=feature_cols)
@@ -202,10 +237,17 @@ def explore_model(df: pd.DataFrame) -> pd.Series:
         "are imbalanced. Recall on the 'good' class is the number that actually "
         "says whether the model finds good wines."
     )
-    return importances
+    return {
+        "features": feature_cols,
+        "n_test": len(y_test),
+        "baseline": baseline,
+        "logistic_regression": lr,
+        "random_forest": rf,
+        "importances": importances,
+    }
 
 
-
+# ------------------------------------------------------------ 5. visualisation
 def visualise(df: pd.DataFrame, importances: pd.Series) -> Path:
     banner("5. VISUALISATION")
 
@@ -245,8 +287,8 @@ def main() -> None:
 
     inspect(df)
     filter_and_group(df)
-    importances = explore_model(df)
-    visualise(df, importances)
+    results = explore_model(df)
+    visualise(df, results["importances"])
 
     banner("DONE")
 
