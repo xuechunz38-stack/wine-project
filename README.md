@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/xuechunz38-stack/wine-project/actions/workflows/ci.yml/badge.svg)](https://github.com/xuechunz38-stack/wine-project/actions/workflows/ci.yml)
 
-Week 2 of a three-week project. This repository contains a Pandas analysis of the
+Week 3 of a three-week project. This repository contains a Pandas analysis of the
 UCI wine-quality dataset, a Polars reimplementation with a performance
 comparison, and a Jupyter notebook experimenting with Rust's ownership system.
 
