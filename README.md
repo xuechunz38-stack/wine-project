@@ -1,5 +1,7 @@
 # Wine Quality — Data Analysis, Pandas vs Polars, and Rust Ownership
 
+[![CI](https://github.com/xuechunz38-stack/wine-project/actions/workflows/ci.yml/badge.svg)](https://github.com/xuechunz38-stack/wine-project/actions/workflows/ci.yml)
+
 Week 2 of a three-week project. This repository contains a Pandas analysis of the
 UCI wine-quality dataset, a Polars reimplementation with a performance
 comparison, and a Jupyter notebook experimenting with Rust's ownership system.
@@ -280,15 +282,66 @@ any borrow conflict can be detected. Looping over `&ratings` borrows instead of
 moving, and only then does E0502 appear. I added that variant as a separate
 cell with a note comparing the two rules.
 
-## Next week
+## Testing and continuous integration
 
-Testing, continuous integration, and refactoring on this same codebase.
-`data_utils.py` already isolates the loading logic and the analysis steps are
-split into separate functions, which should make them straightforward to test
-individually -- `detect_separator` and `normalise` in particular are pure
-functions with obvious edge cases.
+```bash
+pip install -r requirements.txt
+pytest
+```
 
-Analysis work still on the list:
+46 tests in `tests/`, run automatically on every push by the GitHub Actions
+workflow in `.github/workflows/ci.yml`.
+
+| File | What it covers |
+|---|---|
+| `test_data_utils.py` | Column-name normalisation, delimiter detection (comma, semicolon, tab, UTF-8 BOM, single-column fallback), dataset discovery and the missing-file error |
+| `test_analysis.py` | Loading and normalising, semicolon/comma equivalence, target labelling at the `quality >= 7` boundary, duplicate removal without mutating input, feature selection, group-by correctness against a manual calculation, the majority-class baseline, model outputs and metrics, reproducibility, and the saved figure |
+| `test_polars_parity.py` | Pandas and Polars give the same shape, filter count and group-by values -- plus a check that the comparison itself fails when a value is wrong |
+| `test_system.py` | The whole pipeline end to end, once on synthetic data and once on the committed dataset |
+
+**Design choices.**
+
+- **Unit tests use synthetic data, not the real CSV.** A fixture generates a
+  small wine-like table in which alcohol is the *only* informative feature. That
+  gives the model tests a known right answer: a working model must rank alcohol
+  first and beat chance. On real data there is no ground truth to check against.
+- **One system test pins the README's numbers.** It runs the full pipeline on
+  the committed dataset and asserts the figures quoted in Findings (6,497 rows,
+  1,177 duplicates, 0.810 baseline, 0.847 / 0.879 for the random forest). If the
+  data or code changes and the README goes stale, CI fails.
+- **Dependencies are pinned** in `requirements.txt` to the versions the results
+  were produced with. The tests pass locally on Python 3.9 and in CI on
+  Python 3.11 with the same library versions.
+- **Tests never touch the committed figure.** Output paths are redirected to a
+  temporary directory.
+
+**A bug the tests found.** The majority-class baseline was computed as
+`1 - y.mean()`, which assumes "not good" is always the larger class. That holds
+for this dataset, so the reported 0.810 was correct, but on a synthetic sample
+where most wines were good the function returned the *minority* baseline. It is
+now `max(p, 1 - p)` in its own function, with a parametrised test covering
+negative-majority, positive-majority, balanced and single-class labels.
+
+**Refactoring for testability.** `explore_model` previously printed its metrics
+and returned only feature importances, so there was nothing to assert against.
+It now returns a dict of baseline, per-model metrics, predictions and
+importances, with scoring split into `evaluate()` and feature selection into
+`select_features()`. The printed output is unchanged.
+
+### Tests passing locally
+
+![pytest output](screenshots/pytest_local.png)
+
+### Tests passing in GitHub Actions
+
+![GitHub Actions run](screenshots/github_actions.png)
+
+
+
+## Next steps
+
+Testing, CI and refactoring are done — see the section above. Analysis work
+still on the list:
 
 - Encode `type` (red/white) and check how much of the signal it carries.
 - Tune the random forest's decision threshold instead of using the 0.5 default,
