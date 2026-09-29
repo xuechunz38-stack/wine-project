@@ -1,0 +1,12 @@
+feature,missing,lower_fence,upper_fence,flagged
+fixed_acidity,0,4.450000,9.650000,357
+volatile_acidity,0,-0.025000,0.655000,377
+citric_acid,0,0.040000,0.600000,509
+residual_sugar,0,-7.650000,17.550000,118
+chlorides,0,-0.002500,0.105500,286
+free_sulfur_dioxide,0,-19.000000,77.000000,62
+total_sulfur_dioxide,0,-41.500000,274.500000,10
+density,0,0.985365,1.003965,3
+ph,0,2.795000,3.635000,73
+sulphates,0,0.175000,0.855000,191
+alcohol,0,6.800000,14.000000,3
