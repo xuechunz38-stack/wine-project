@@ -12,8 +12,8 @@ import csv
 from pathlib import Path
 
 DATA_DIR = Path(__file__).parent / "data"
-QUALITY_THRESHOLD = 7  
-ALCOHOL_FILTER = 11.0  
+QUALITY_THRESHOLD = 7
+ALCOHOL_FILTER = 11.0
 
 
 def find_dataset() -> Path:
@@ -24,7 +24,7 @@ def find_dataset() -> Path:
             f"No CSV found in {DATA_DIR}. Download the dataset from Kaggle "
             "and place it there (see README.md)."
         )
-    
+
     for path in candidates:
         if "wine" in path.name.lower():
             return path

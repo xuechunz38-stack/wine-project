@@ -17,7 +17,7 @@ import data_utils
         ("pH", "ph"),
         ("free-sulfur dioxide", "free_sulfur_dioxide"),
         ('  "alcohol"  ', "alcohol"),  # stray whitespace and quotes from a messy header
-        ("quality", "quality"),          # already clean: unchanged
+        ("quality", "quality"),  # already clean: unchanged
     ],
 )
 def test_normalise(raw, expected):
