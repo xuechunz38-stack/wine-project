@@ -1,0 +1,165 @@
+
+======================================================================
+1. IMPORTING THE DATASET
+======================================================================
+Loaded wine_quality_merged.csv  (separator ',')  ->  6497 rows x 13 columns
+
+======================================================================
+2. INSPECTING THE DATA
+======================================================================
+
+--- .head() ---
+   fixed_acidity  volatile_acidity  citric_acid  ...  alcohol  quality  type
+0            7.4              0.70         0.00  ...      9.4        5   red
+1            7.8              0.88         0.00  ...      9.8        5   red
+2            7.8              0.76         0.04  ...      9.8        5   red
+3           11.2              0.28         0.56  ...      9.8        6   red
+4            7.4              0.70         0.00  ...      9.4        5   red
+
+[5 rows x 13 columns]
+
+--- .info() ---
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 6497 entries, 0 to 6496
+Data columns (total 13 columns):
+ #   Column                Non-Null Count  Dtype  
+---  ------                --------------  -----  
+ 0   fixed_acidity         6497 non-null   float64
+ 1   volatile_acidity      6497 non-null   float64
+ 2   citric_acid           6497 non-null   float64
+ 3   residual_sugar        6497 non-null   float64
+ 4   chlorides             6497 non-null   float64
+ 5   free_sulfur_dioxide   6497 non-null   float64
+ 6   total_sulfur_dioxide  6497 non-null   float64
+ 7   density               6497 non-null   float64
+ 8   ph                    6497 non-null   float64
+ 9   sulphates             6497 non-null   float64
+ 10  alcohol               6497 non-null   float64
+ 11  quality               6497 non-null   int64  
+ 12  type                  6497 non-null   object 
+dtypes: float64(11), int64(1), object(1)
+memory usage: 660.0+ KB
+
+--- .describe() ---
+                       count     mean     std  ...      50%      75%      max
+fixed_acidity         6497.0    7.215   1.296  ...    7.000    7.700   15.900
+volatile_acidity      6497.0    0.340   0.165  ...    0.290    0.400    1.580
+citric_acid           6497.0    0.319   0.145  ...    0.310    0.390    1.660
+residual_sugar        6497.0    5.443   4.758  ...    3.000    8.100   65.800
+chlorides             6497.0    0.056   0.035  ...    0.047    0.065    0.611
+free_sulfur_dioxide   6497.0   30.525  17.749  ...   29.000   41.000  289.000
+total_sulfur_dioxide  6497.0  115.745  56.522  ...  118.000  156.000  440.000
+density               6497.0    0.995   0.003  ...    0.995    0.997    1.039
+ph                    6497.0    3.219   0.161  ...    3.210    3.320    4.010
+sulphates             6497.0    0.531   0.149  ...    0.510    0.600    2.000
+alcohol               6497.0   10.492   1.193  ...   10.300   11.300   14.900
+quality               6497.0    5.818   0.873  ...    6.000    6.000    9.000
+
+[12 rows x 8 columns]
+
+--- missing values per column ---
+No missing values in any column.
+
+--- duplicates ---
+Fully duplicated rows: 1177 (18.1% of the dataset)
+These are kept for the EDA but dropped before model training, so that identical rows cannot appear in both train and test sets.
+
+--- target distribution (quality) ---
+         count  share
+quality              
+3           30  0.005
+4          216  0.033
+5         2138  0.329
+6         2836  0.437
+7         1079  0.166
+8          193  0.030
+9            5  0.001
+
+======================================================================
+3. FILTERING AND GROUPING
+======================================================================
+
+Filter: alcohol > 11.0% ABV
+  1969 of 6497 wines (30.3%)
+  mean quality in this subset: 6.338
+  mean quality overall:        5.818
+
+Group by quality score:
+            n  mean_alcohol  ...  mean_sulphates  mean_density
+quality                      ...                              
+3          30        10.215  ...           0.506         0.996
+4         216        10.180  ...           0.506         0.995
+5        2138         9.838  ...           0.526         0.996
+6        2836        10.588  ...           0.533         0.995
+7        1079        11.386  ...           0.547         0.993
+8         193        11.679  ...           0.512         0.993
+9           5        12.180  ...           0.466         0.991
+
+[7 rows x 5 columns]
+
+Mean alcohol at the lowest quality score:  10.21%
+Mean alcohol at the highest quality score: 12.18%
+Minimum is at quality 5, not at the bottom: 9.84%
+So the relationship is U-shaped, not monotonic: alcohol falls to 9.84% at quality 5, then rises 2.34 percentage points to 12.18% at quality 9.
+
+Caution: quality score(s) [3, 9] have fewer than 50 samples ({3: 30, 9: 5}). Their group means are unstable and should not be used to support a conclusion.
+
+======================================================================
+4. MACHINE LEARNING: IS THIS A GOOD WINE?
+======================================================================
+Task: good = quality >= 7
+Rows used: 5320 (after dropping duplicates)
+Features: fixed_acidity, volatile_acidity, citric_acid, residual_sugar, chlorides, free_sulfur_dioxide, total_sulfur_dioxide, density, ph, sulphates, alcohol
+Class split: {0: 4311, 1: 1009}
+Majority-class baseline accuracy: 0.810
+
+--- Logistic Regression ---
+accuracy: 0.735   ROC-AUC: 0.816
+              precision    recall  f1-score   support
+
+    not good       0.93      0.72      0.82       862
+        good       0.40      0.78      0.53       202
+
+    accuracy                           0.73      1064
+   macro avg       0.67      0.75      0.67      1064
+weighted avg       0.83      0.73      0.76      1064
+
+
+--- Random Forest ---
+accuracy: 0.847   ROC-AUC: 0.879
+              precision    recall  f1-score   support
+
+    not good       0.86      0.97      0.91       862
+        good       0.71      0.33      0.45       202
+
+    accuracy                           0.85      1064
+   macro avg       0.78      0.65      0.68      1064
+weighted avg       0.83      0.85      0.82      1064
+
+Feature importance (random forest):
+alcohol                 0.2100
+density                 0.1198
+volatile_acidity        0.0870
+chlorides               0.0869
+total_sulfur_dioxide    0.0796
+citric_acid             0.0774
+sulphates               0.0717
+residual_sugar          0.0705
+free_sulfur_dioxide     0.0691
+ph                      0.0669
+fixed_acidity           0.0611
+Accuracy, precision and recall answer different questions; compare them against the tasting team's capacity and the cost of missed good wines.
+
+======================================================================
+5. VISUALISATION
+======================================================================
+Figure written to /app/figures/wine_overview.png
+
+TASTING BUDGET: fixed top 20% of held-out wines
+              model  budget_fraction  selected  good_found  total_good  precision   recall     lift  random_expected_good
+logistic_regression              0.2       213          99         202   0.464789 0.490099 2.448194              40.43797
+      random_forest              0.2       213         126         202   0.591549 0.623762 3.115883              40.43797
+
+======================================================================
+DONE
+======================================================================

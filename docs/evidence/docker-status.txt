@@ -1,0 +1,10 @@
+ExitCode=0 Status=exited Image=wine-project:week4
+CONTAINER ID   IMAGE                COMMAND                CREATED        STATUS                      PORTS     NAMES
+9f4a607bc304   wine-project:week4   "python analysis.py"   16 hours ago   Exited (0) 55 seconds ago             wine-week4-check
+CONTAINER ID   IMAGE                COMMAND                CREATED        STATUS                      PORTS     NAMES
+93f54b3b6d42   wine-project:week4   "python analysis.py"   16 hours ago   Exited (0) 55 seconds ago             wine-week4-internal
+9f4a607bc304   wine-project:week4   "python analysis.py"   16 hours ago   Exited (0) 55 seconds ago             wine-week4-check
+IMAGE                ID             DISK USAGE   CONTENT SIZE   EXTRA
+wine-project:week4   7c77108de872       1.01GB          225MB   U    
+IMAGE                ID             DISK USAGE   CONTENT SIZE   EXTRA
+wine-project:week4   7c77108de872       1.01GB          225MB   U    

@@ -57,8 +57,9 @@ is a mirror of [UCI Wine Quality](https://archive.ics.uci.edu/dataset/186/wine+q
 |---|---:|---:|---:|---:|
 | Always predict not good | 0.810 | — | — | 0.000 |
 | Logistic regression | 0.735 | 0.816 | 0.40 | 0.78 |
-| Random forest | 0.847 | 0.879 | 0.71 | 0.32 |
+| Random forest | 0.847 | 0.879 | 0.71 | 0.33 |
 
+The tables use the verified local Linux arm64 / Python 3.11 container run.
 Default thresholds allocate different amounts of tasting effort. At a fixed
 **20% budget (213 of 1,064 test wines)**, ranking by predicted probability gives:
 
@@ -66,13 +67,17 @@ Default thresholds allocate different amounts of tasting effort. At a fixed
 |---|---:|---:|---:|---:|
 | Random selection, expectation | 40.4 | 19.0% | 20.0% | 1.00× |
 | Logistic regression | 99 / 202 | 46.5% | 49.0% | 2.45× |
-| Random forest | 127 / 202 | 59.6% | 62.9% | 3.14× |
+| Random forest | 126 / 202 | 59.2% | 62.4% | 3.12× |
 
-The forest finds **28 more good wines at the same tasting workload**. This
+The forest finds **27 more good wines at the same tasting workload**. This
 supports using its ranking for a limited shortlist, while recognising that it
-still misses 75 of the 202 good wines. Budgets were fixed before this report
+still misses 76 of the 202 good wines. Budgets were fixed before this report
 (5%, 10%, 20%, 30%, 50%, 100%); no threshold was selected using test labels.
 A later production choice would need validation data and a fresh final test.
+A native macOS/Python 3.12 run found 127 good wines instead of 126 at the
+20% budget. Both pass the earlier metric checks, but the forest rankings are
+not bit-for-bit portable across the tested environments. The substantive
+comparison is unchanged; [both results are preserved](docs/verification.md).
 Random figures are expectations, not a simulated random trial; rounding the
 budget upward explains the slightly greater than 20% expected recall.
 
@@ -105,9 +110,11 @@ if the output directory is not writable by UID 10001, run with
 `--user "$(id -u):$(id -g)"`; the image keeps Matplotlib's cache in `/tmp`.
 No ports or Compose services are needed.
 
-Local image build succeeded; complete container execution is verified in
-GitHub Actions. The local Docker runtime check is still pending; see the dated
-[verification record](docs/verification.md) for the current limitation.
+Local image build, full analysis, bind-mounted output, and all **70 container
+tests** passed on September 30. GitHub Actions also verified container execution.
+See the [verification record](docs/verification.md) and actual local screenshot:
+
+<img src="screenshots/week4_docker_local.png" alt="Local Docker Desktop: wine analysis completed with exit code 0" width="820">
 
 <img src="screenshots/week4_docker_ci.png" alt="GitHub Actions Docker build, full analysis, and artifact checks succeeded" width="820">
 
