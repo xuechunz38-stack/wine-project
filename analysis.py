@@ -13,7 +13,6 @@ Outputs:   figures/wine_overview.png  and  a printed report on stdout
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import matplotlib
@@ -21,6 +20,12 @@ import matplotlib
 matplotlib.use("Agg")  # write PNGs without needing a display
 import matplotlib.pyplot as plt
 import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 from data_utils import (
     ALCOHOL_FILTER,
@@ -30,16 +35,8 @@ from data_utils import (
     normalise,
 )
 
-from wine_models import (
-    build_target as build_target,
-    select_features as select_features,
-    majority_baseline as majority_baseline,
-    evaluate as evaluate,
-    train_and_evaluate,
-)
-from wine_decisions import write_decision_report
-
-FIG_DIR = Path(os.environ.get("WINE_OUTPUT_DIR", Path(__file__).parent / "figures"))
+FIG_DIR = Path(__file__).parent / "figures"
+RANDOM_STATE = 42
 
 
 def banner(text: str) -> None:
@@ -52,11 +49,7 @@ def load_data() -> pd.DataFrame:
     sep = detect_separator(path)
     df = pd.read_csv(path, sep=sep)
     df.columns = [normalise(c) for c in df.columns]
-    if df.empty or df.columns.duplicated().any():
-        raise ValueError("Dataset must contain rows and unique normalized columns.")
-    print(
-        f"Loaded {path.name}  (separator {sep!r})  ->  {df.shape[0]} rows x {df.shape[1]} columns"
-    )
+    print(f"Loaded {path.name}  (separator {sep!r})  ->  {df.shape[0]} rows x {df.shape[1]} columns")
     return df
 
 
@@ -78,15 +71,11 @@ def inspect(df: pd.DataFrame) -> None:
     print(missing[missing > 0] if missing.any() else "No missing values in any column.")
 
     n_dupes = int(df.duplicated().sum())
-    print(
-        f"\n--- duplicates ---\nFully duplicated rows: {n_dupes} "
-        f"({n_dupes / len(df):.1%} of the dataset)"
-    )
+    print(f"\n--- duplicates ---\nFully duplicated rows: {n_dupes} "
+          f"({n_dupes / len(df):.1%} of the dataset)")
     if n_dupes:
-        print(
-            "These are kept for the EDA but dropped before model training, "
-            "so that identical rows cannot appear in both train and test sets."
-        )
+        print("These are kept for the EDA but dropped before model training, "
+              "so that identical rows cannot appear in both train and test sets.")
 
     print("\n--- target distribution (quality) ---")
     counts = df["quality"].value_counts().sort_index()
@@ -99,9 +88,7 @@ def filter_and_group(df: pd.DataFrame) -> pd.DataFrame:
 
     high_alcohol = df[df["alcohol"] > ALCOHOL_FILTER]
     print(f"\nFilter: alcohol > {ALCOHOL_FILTER}% ABV")
-    print(
-        f"  {len(high_alcohol)} of {len(df)} wines ({len(high_alcohol) / len(df):.1%})"
-    )
+    print(f"  {len(high_alcohol)} of {len(df)} wines ({len(high_alcohol) / len(df):.1%})")
     print(f"  mean quality in this subset: {high_alcohol['quality'].mean():.3f}")
     print(f"  mean quality overall:        {df['quality'].mean():.3f}")
 
@@ -144,36 +131,127 @@ def filter_and_group(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------- 4. modelling
+def build_target(df: pd.DataFrame) -> pd.DataFrame:
+    """Turn the 3-8 quality score into a binary 'good wine' label."""
+    out = df.drop_duplicates().copy()
+    out["good"] = (out["quality"] >= QUALITY_THRESHOLD).astype(int)
+    return out
+
+
+def select_features(data: pd.DataFrame) -> list[str]:
+    """Numeric columns other than the target. Text columns such as `type` are skipped."""
+    return [
+        c for c in data.columns
+        if c not in ("quality", "good") and pd.api.types.is_numeric_dtype(data[c])
+    ]
+
+
+def majority_baseline(y: pd.Series) -> float:
+    """Accuracy of always predicting the most common class.
+
+    Written as max(p, 1 - p) rather than 1 - p: the latter silently assumes the
+    negative class is the majority, which is true for this dataset but not in
+    general (a unit test caught this on a positive-majority sample).
+    """
+    p = float(y.mean())
+    return max(p, 1.0 - p)
+
+
+def evaluate(model, X_test: pd.DataFrame, y_test: pd.Series) -> dict:
+    """Score a fitted classifier. Returned as a dict so tests can check the numbers."""
+    pred = model.predict(X_test)
+    proba = model.predict_proba(X_test)[:, 1]
+    return {
+        "accuracy": accuracy_score(y_test, pred),
+        "roc_auc": roc_auc_score(y_test, proba),
+        "predictions": pred,
+        "report": classification_report(
+            y_test, pred, target_names=["not good", "good"], zero_division=0
+        ),
+    }
+
+
 def explore_model(df: pd.DataFrame) -> dict:
-    """Present model results; computations are reusable in wine_models.py."""
+    """Train and evaluate both models.
+
+    Returns a dict with the baseline, per-model metrics and the random-forest
+    feature importances, so the results can be tested rather than only printed.
+    """
     banner("4. MACHINE LEARNING: IS THIS A GOOD WINE?")
-    results = train_and_evaluate(df)
-    print(f"Task: good = quality >= {QUALITY_THRESHOLD}")
-    print(f"Rows used: {results['n_rows']} (after dropping duplicates)")
-    print(f"Features: {', '.join(results['features'])}")
-    print(f"Class split: {results['class_counts']}")
-    print(f"Majority-class baseline accuracy: {results['baseline']:.3f}")
-    for name in ("logistic_regression", "random_forest"):
-        metrics = results[name]
-        print(f"\n--- {name.replace('_', ' ').title()} ---")
-        print(
-            f"accuracy: {metrics['accuracy']:.3f}   ROC-AUC: {metrics['roc_auc']:.3f}"
-        )
-        print(metrics["report"])
-    print("Feature importance (random forest):")
-    print(results["importances"].round(4).to_string())
-    print(
-        "Accuracy, precision and recall answer different questions; compare them "
-        "against the tasting team's capacity and the cost of missed good wines."
+
+    data = build_target(df)
+    feature_cols = select_features(data)
+
+    X = data[feature_cols]
+    y = data["good"]
+
+    print(f"\nTask       : binary classification, good = quality >= {QUALITY_THRESHOLD}")
+    print(f"Rows used  : {len(data)} (after dropping duplicates)")
+    print(f"Features   : {len(feature_cols)} -> {', '.join(feature_cols)}")
+    print(f"Class split: {y.value_counts().to_dict()}  "
+          f"(positive class = {y.mean():.1%} of rows)")
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
     )
-    return results
+
+    baseline = majority_baseline(y_test)
+    print(f"\nMajority-class baseline accuracy: {baseline:.3f}")
+    print("Any model has to beat this number to be worth anything.")
+
+    # -- model A: logistic regression (needs scaling)
+    logreg = make_pipeline(
+        StandardScaler(),
+        LogisticRegression(max_iter=2000, class_weight="balanced"),
+    )
+    logreg.fit(X_train, y_train)
+    lr = evaluate(logreg, X_test, y_test)
+
+    print("\n--- Logistic regression ---")
+    print(f"accuracy: {lr['accuracy']:.3f}   ROC-AUC: {lr['roc_auc']:.3f}")
+    print(lr["report"])
+
+    # -- model B: random forest
+    forest = RandomForestClassifier(
+        n_estimators=300,
+        random_state=RANDOM_STATE,
+        class_weight="balanced",
+        n_jobs=-1,
+    )
+    forest.fit(X_train, y_train)
+    rf = evaluate(forest, X_test, y_test)
+
+    print("--- Random forest ---")
+    print(f"accuracy: {rf['accuracy']:.3f}   ROC-AUC: {rf['roc_auc']:.3f}")
+    print(rf["report"])
+
+    importances = (
+        pd.Series(forest.feature_importances_, index=feature_cols)
+        .sort_values(ascending=False)
+    )
+    print("Feature importance (random forest):")
+    print(importances.round(4).to_string())
+
+    print(
+        "\nNote: accuracy alone is misleading on this dataset because the classes "
+        "are imbalanced. Recall on the 'good' class is the number that actually "
+        "says whether the model finds good wines."
+    )
+    return {
+        "features": feature_cols,
+        "n_test": len(y_test),
+        "baseline": baseline,
+        "logistic_regression": lr,
+        "random_forest": rf,
+        "importances": importances,
+    }
 
 
 # ------------------------------------------------------------ 5. visualisation
 def visualise(df: pd.DataFrame, importances: pd.Series) -> Path:
     banner("5. VISUALISATION")
 
-    FIG_DIR.mkdir(parents=True, exist_ok=True)
+    FIG_DIR.mkdir(exist_ok=True)
     fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
 
     counts = df["quality"].value_counts().sort_index()
@@ -211,7 +289,6 @@ def main() -> None:
     filter_and_group(df)
     results = explore_model(df)
     visualise(df, results["importances"])
-    write_decision_report(df, results, FIG_DIR)
 
     banner("DONE")
 

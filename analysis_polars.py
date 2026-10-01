@@ -40,6 +40,7 @@ def time_it(fn, repeats: int = REPEATS) -> tuple[float, object]:
     return statistics.median(timings), result
 
 
+
 def pandas_read(path: Path, sep: str) -> pd.DataFrame:
     df = pd.read_csv(path, sep=sep)
     df.columns = [normalise(c) for c in df.columns]
@@ -104,6 +105,7 @@ def polars_lazy_group(path: Path, sep: str) -> pl.DataFrame:
     )
 
 
+
 def results_match(pdf: pd.DataFrame, pldf: pl.DataFrame, tol: float = 1e-6) -> bool:
     """Confirm both libraries computed the same group-by.
 
@@ -135,32 +137,25 @@ def results_match(pdf: pd.DataFrame, pldf: pl.DataFrame, tol: float = 1e-6) -> b
     return True
 
 
+
 def run_benchmark(path: Path, sep: str, label: str) -> list[dict]:
     print(f"\n--- {label} ---")
     rows = []
 
     read_pd_ms, pdf = time_it(lambda: pandas_read(path, sep))
     read_pl_ms, pldf = time_it(lambda: polars_read(path, sep))
-    rows.append(
-        {"operation": "read_csv", "pandas_ms": read_pd_ms, "polars_ms": read_pl_ms}
-    )
+    rows.append({"operation": "read_csv", "pandas_ms": read_pd_ms, "polars_ms": read_pl_ms})
 
     filt_pd_ms, filt_pd = time_it(lambda: pandas_filter(pdf))
     filt_pl_ms, filt_pl = time_it(lambda: polars_filter(pldf))
-    rows.append(
-        {"operation": "filter", "pandas_ms": filt_pd_ms, "polars_ms": filt_pl_ms}
-    )
+    rows.append({"operation": "filter", "pandas_ms": filt_pd_ms, "polars_ms": filt_pl_ms})
 
     grp_pd_ms, grp_pd = time_it(lambda: pandas_group(pdf))
     grp_pl_ms, grp_pl = time_it(lambda: polars_group(pldf))
-    rows.append(
-        {"operation": "groupby+agg", "pandas_ms": grp_pd_ms, "polars_ms": grp_pl_ms}
-    )
+    rows.append({"operation": "groupby+agg", "pandas_ms": grp_pd_ms, "polars_ms": grp_pl_ms})
 
-    print(
-        f"rows: {len(pdf):,}   filtered rows: {len(filt_pd):,} (pandas) / "
-        f"{filt_pl.height:,} (polars)"
-    )
+    print(f"rows: {len(pdf):,}   filtered rows: {len(filt_pd):,} (pandas) / "
+          f"{filt_pl.height:,} (polars)")
     print(f"results identical: {results_match(grp_pd, grp_pl)}")
 
     print(f"\n{'operation':<14}{'pandas (ms)':>14}{'polars (ms)':>14}{'speed-up':>12}")
@@ -168,10 +163,8 @@ def run_benchmark(path: Path, sep: str, label: str) -> list[dict]:
         ratio = row["pandas_ms"] / row["polars_ms"]
         row["speedup"] = ratio
         row["scale"] = label
-        print(
-            f"{row['operation']:<14}{row['pandas_ms']:>14.3f}"
-            f"{row['polars_ms']:>14.3f}{ratio:>11.2f}x"
-        )
+        print(f"{row['operation']:<14}{row['pandas_ms']:>14.3f}"
+              f"{row['polars_ms']:>14.3f}{ratio:>11.2f}x")
 
     return rows
 
@@ -185,20 +178,16 @@ def make_scaled_copy(path: Path, sep: str) -> Path:
     big = pd.concat([df] * factor, ignore_index=True)
     big.to_csv(out, sep=sep, index=False)
     size_mb = out.stat().st_size / 1024 / 1024
-    print(
-        f"\nBuilt a scaled copy: {len(big):,} rows, {size_mb:.1f} MB "
-        f"(original repeated {factor}x)"
-    )
+    print(f"\nBuilt a scaled copy: {len(big):,} rows, {size_mb:.1f} MB "
+          f"(original repeated {factor}x)")
     return out
 
 
 def main() -> None:
     banner("PANDAS vs POLARS")
     print(f"pandas {pd.__version__}   polars {pl.__version__}")
-    print(
-        f"Each operation is warmed up once, then run {REPEATS} times; "
-        "the median is reported."
-    )
+    print(f"Each operation is warmed up once, then run {REPEATS} times; "
+          "the median is reported.")
 
     path = find_dataset()
     sep = detect_separator(path)
@@ -210,19 +199,13 @@ def main() -> None:
 
     banner("LAZY API")
     lazy_ms, lazy_result = time_it(lambda: polars_lazy_group(scaled, sep))
-    print(
-        f"scan_csv -> filter -> group_by -> collect on the scaled file: "
-        f"{lazy_ms:.1f} ms"
-    )
-    print(
-        "Lazy mode lets Polars push the filter down into the CSV scan, so rows "
-        "that fail the predicate are never fully materialised."
-    )
+    print(f"scan_csv -> filter -> group_by -> collect on the scaled file: "
+          f"{lazy_ms:.1f} ms")
+    print("Lazy mode lets Polars push the filter down into the CSV scan, so rows "
+          "that fail the predicate are never fully materialised.")
     print(lazy_result)
 
-    summary = pd.DataFrame(all_rows)[
-        ["scale", "operation", "pandas_ms", "polars_ms", "speedup"]
-    ]
+    summary = pd.DataFrame(all_rows)[["scale", "operation", "pandas_ms", "polars_ms", "speedup"]]
     summary.to_csv(Path(__file__).parent / "benchmark_results.csv", index=False)
 
     banner("SUMMARY")

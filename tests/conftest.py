@@ -16,19 +16,9 @@ import data_utils
 # Column names exactly as they appear in the Kaggle CSV (spaces, mixed case),
 # so the tests also exercise the normalisation step.
 RAW_COLUMNS = [
-    "fixed acidity",
-    "volatile acidity",
-    "citric acid",
-    "residual sugar",
-    "chlorides",
-    "free sulfur dioxide",
-    "total sulfur dioxide",
-    "density",
-    "pH",
-    "sulphates",
-    "alcohol",
-    "quality",
-    "type",
+    "fixed acidity", "volatile acidity", "citric acid", "residual sugar",
+    "chlorides", "free sulfur dioxide", "total sulfur dioxide", "density",
+    "pH", "sulphates", "alcohol", "quality", "type",
 ]
 
 
@@ -43,23 +33,21 @@ def make_wine_frame(n: int = 300, seed: int = 0) -> pd.DataFrame:
     alcohol = rng.uniform(8.0, 14.0, n)
     # Offset chosen so fewer than half the wines score >= 7, as in the real data.
     quality = np.clip(np.round(alcohol - 5.3 + rng.normal(0, 0.6, n)), 3, 9).astype(int)
-    df = pd.DataFrame(
-        {
-            "fixed acidity": rng.normal(7.2, 1.3, n),
-            "volatile acidity": rng.normal(0.34, 0.16, n).clip(0.05),
-            "citric acid": rng.normal(0.32, 0.14, n).clip(0),
-            "residual sugar": rng.gamma(2.0, 2.7, n),
-            "chlorides": rng.normal(0.056, 0.03, n).clip(0.005),
-            "free sulfur dioxide": rng.normal(30, 17, n).clip(1),
-            "total sulfur dioxide": rng.normal(115, 56, n).clip(5),
-            "density": rng.normal(0.995, 0.003, n),
-            "pH": rng.normal(3.22, 0.16, n),
-            "sulphates": rng.normal(0.53, 0.15, n).clip(0.2),
-            "alcohol": alcohol.round(1),
-            "quality": quality,
-            "type": rng.choice(["red", "white"], n),
-        }
-    )
+    df = pd.DataFrame({
+        "fixed acidity": rng.normal(7.2, 1.3, n),
+        "volatile acidity": rng.normal(0.34, 0.16, n).clip(0.05),
+        "citric acid": rng.normal(0.32, 0.14, n).clip(0),
+        "residual sugar": rng.gamma(2.0, 2.7, n),
+        "chlorides": rng.normal(0.056, 0.03, n).clip(0.005),
+        "free sulfur dioxide": rng.normal(30, 17, n).clip(1),
+        "total sulfur dioxide": rng.normal(115, 56, n).clip(5),
+        "density": rng.normal(0.995, 0.003, n),
+        "pH": rng.normal(3.22, 0.16, n),
+        "sulphates": rng.normal(0.53, 0.15, n).clip(0.2),
+        "alcohol": alcohol.round(1),
+        "quality": quality,
+        "type": rng.choice(["red", "white"], n),
+    })
     return df[RAW_COLUMNS]
 
 

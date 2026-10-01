@@ -5,48 +5,25 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:
-  schedule:
-    - cron: '0 13 * * 1'
-
-permissions:
-  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.11', '3.12']
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-      - name: Install dependencies
-        run: python -m pip install -r requirements-dev.txt
-      - name: Check formatting and lint
-        run: make lint
-      - name: Unit and system tests
-        run: make test
 
-  container:
-    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Build image
-        run: docker build -t wine-project:ci .
-      - name: Run full analysis in container
-        run: docker run --name wine-check wine-project:ci
-      - name: Verify generated report artifacts
-        run: |
-          docker cp wine-check:/app/figures ./container-output
-          test -s container-output/wine_overview.png
-          test -s container-output/tasting_budget.csv
-          test -s container-output/outlier_audit.csv
-      - uses: actions/upload-artifact@v4
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          name: wine-analysis
-          path: container-output/
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest

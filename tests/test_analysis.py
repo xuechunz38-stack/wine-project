@@ -33,9 +33,7 @@ def test_load_data_keeps_every_row(data_dir, raw_frame):
 
 # ------------------------------------------------------------- preprocessing
 def test_build_target_labels_at_threshold():
-    df = pd.DataFrame(
-        {"quality": [3, 5, 6, 7, 8, 9], "alcohol": [9, 10, 11, 12, 13, 14]}
-    )
+    df = pd.DataFrame({"quality": [3, 5, 6, 7, 8, 9], "alcohol": [9, 10, 11, 12, 13, 14]})
     out = analysis.build_target(df)
     expected = [1 if q >= QUALITY_THRESHOLD else 0 for q in df["quality"]]
     assert out["good"].tolist() == expected
@@ -64,17 +62,17 @@ def test_select_features_excludes_target_and_text_columns(clean_frame):
     features = analysis.select_features(data)
     assert "quality" not in features
     assert "good" not in features
-    assert "type" not in features  # text column: skipped
-    assert len(features) == 11  # the eleven physicochemical measurements
+    assert "type" not in features       # text column: skipped
+    assert len(features) == 11          # the eleven physicochemical measurements
 
 
 @pytest.mark.parametrize(
     "labels, expected",
     [
-        ([0, 0, 0, 1], 0.75),  # negative majority (like the real data)
-        ([1, 1, 1, 0], 0.75),  # positive majority: the case the old formula got wrong
-        ([0, 1], 0.5),  # perfectly balanced
-        ([0, 0, 0], 1.0),  # single class
+        ([0, 0, 0, 1], 0.75),   # negative majority (like the real data)
+        ([1, 1, 1, 0], 0.75),   # positive majority: the case the old formula got wrong
+        ([0, 1], 0.5),          # perfectly balanced
+        ([0, 0, 0], 1.0),       # single class
     ],
 )
 def test_majority_baseline(labels, expected):
@@ -111,13 +109,7 @@ def model_results(clean_frame):
 
 
 def test_explore_model_returns_all_parts(model_results):
-    for key in (
-        "features",
-        "baseline",
-        "logistic_regression",
-        "random_forest",
-        "importances",
-    ):
+    for key in ("features", "baseline", "logistic_regression", "random_forest", "importances"):
         assert key in model_results
 
 
