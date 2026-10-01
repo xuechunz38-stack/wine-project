@@ -163,7 +163,8 @@ to `/app/output` so results land on the host through `-v`. Practised along the
 way: `docker pull python:3.11-slim`, `docker images`, `docker ps`.
 **What I learned:** without the volume mount the figures are created and then
 lost with the container, and the non-root user needs ownership of the output
-folder.
+folder. Because `make docker-run` uses `--rm`, the finished container is
+removed automatically, so it does not appear in `docker ps -a` afterwards.
 
 <img src="screenshots/docker_build.png" alt="docker build output" width="620">
 <img src="screenshots/docker_run.png" alt="docker run output and generated files" width="620">
