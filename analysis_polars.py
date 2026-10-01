@@ -18,15 +18,13 @@ from pathlib import Path
 import pandas as pd
 import polars as pl
 
-from data_utils import ALCOHOL_FILTER, detect_separator, find_dataset, normalise
+from winequality.config import ALCOHOL_FILTER, PROJECT_ROOT
+from winequality.loading import detect_separator, find_dataset, normalise_column, read_wine_csv
+from winequality.reporting import print_section
 
 REPEATS = 15  # timed runs per operation; we report the median
 SCALED_ROWS = 1_000_000
-TMP_DIR = Path(__file__).parent / ".bench_tmp"
-
-
-def banner(text: str) -> None:
-    print(f"\n{'=' * 70}\n{text}\n{'=' * 70}")
+TMP_DIR = PROJECT_ROOT / ".bench_tmp"
 
 
 def time_it(fn, repeats: int = REPEATS) -> tuple[float, object]:
@@ -40,16 +38,14 @@ def time_it(fn, repeats: int = REPEATS) -> tuple[float, object]:
     return statistics.median(timings), result
 
 
-
 def pandas_read(path: Path, sep: str) -> pd.DataFrame:
-    df = pd.read_csv(path, sep=sep)
-    df.columns = [normalise(c) for c in df.columns]
-    return df
+    """Same loader as analysis.py, so the benchmark times the production code path."""
+    return read_wine_csv(path, sep)[0]
 
 
 def polars_read(path: Path, sep: str) -> pl.DataFrame:
     df = pl.read_csv(path, separator=sep)
-    return df.rename({c: normalise(c) for c in df.columns})
+    return df.rename({c: normalise_column(c) for c in df.columns})
 
 
 def pandas_filter(df: pd.DataFrame) -> pd.DataFrame:
@@ -91,7 +87,7 @@ def polars_group(df: pl.DataFrame) -> pl.DataFrame:
 def polars_lazy_group(path: Path, sep: str) -> pl.DataFrame:
     """The whole pipeline expressed lazily, so Polars can optimise it as a unit."""
     scan = pl.scan_csv(path, separator=sep)
-    renamed = {c: normalise(c) for c in scan.collect_schema().names()}
+    renamed = {c: normalise_column(c) for c in scan.collect_schema().names()}
     return (
         scan.rename(renamed)
         .filter(pl.col("alcohol") > ALCOHOL_FILTER)
@@ -103,7 +99,6 @@ def polars_lazy_group(path: Path, sep: str) -> pl.DataFrame:
         .sort("quality")
         .collect()
     )
-
 
 
 def results_match(pdf: pd.DataFrame, pldf: pl.DataFrame, tol: float = 1e-6) -> bool:
@@ -137,7 +132,6 @@ def results_match(pdf: pd.DataFrame, pldf: pl.DataFrame, tol: float = 1e-6) -> b
     return True
 
 
-
 def run_benchmark(path: Path, sep: str, label: str) -> list[dict]:
     print(f"\n--- {label} ---")
     rows = []
@@ -154,8 +148,10 @@ def run_benchmark(path: Path, sep: str, label: str) -> list[dict]:
     grp_pl_ms, grp_pl = time_it(lambda: polars_group(pldf))
     rows.append({"operation": "groupby+agg", "pandas_ms": grp_pd_ms, "polars_ms": grp_pl_ms})
 
-    print(f"rows: {len(pdf):,}   filtered rows: {len(filt_pd):,} (pandas) / "
-          f"{filt_pl.height:,} (polars)")
+    print(
+        f"rows: {len(pdf):,}   filtered rows: {len(filt_pd):,} (pandas) / "
+        f"{filt_pl.height:,} (polars)"
+    )
     print(f"results identical: {results_match(grp_pd, grp_pl)}")
 
     print(f"\n{'operation':<14}{'pandas (ms)':>14}{'polars (ms)':>14}{'speed-up':>12}")
@@ -163,8 +159,10 @@ def run_benchmark(path: Path, sep: str, label: str) -> list[dict]:
         ratio = row["pandas_ms"] / row["polars_ms"]
         row["speedup"] = ratio
         row["scale"] = label
-        print(f"{row['operation']:<14}{row['pandas_ms']:>14.3f}"
-              f"{row['polars_ms']:>14.3f}{ratio:>11.2f}x")
+        print(
+            f"{row['operation']:<14}{row['pandas_ms']:>14.3f}"
+            f"{row['polars_ms']:>14.3f}{ratio:>11.2f}x"
+        )
 
     return rows
 
@@ -178,16 +176,17 @@ def make_scaled_copy(path: Path, sep: str) -> Path:
     big = pd.concat([df] * factor, ignore_index=True)
     big.to_csv(out, sep=sep, index=False)
     size_mb = out.stat().st_size / 1024 / 1024
-    print(f"\nBuilt a scaled copy: {len(big):,} rows, {size_mb:.1f} MB "
-          f"(original repeated {factor}x)")
+    print(
+        f"\nBuilt a scaled copy: {len(big):,} rows, {size_mb:.1f} MB "
+        f"(original repeated {factor}x)"
+    )
     return out
 
 
 def main() -> None:
-    banner("PANDAS vs POLARS")
+    print_section("PANDAS vs POLARS")
     print(f"pandas {pd.__version__}   polars {pl.__version__}")
-    print(f"Each operation is warmed up once, then run {REPEATS} times; "
-          "the median is reported.")
+    print(f"Each operation is warmed up once, then run {REPEATS} times; " "the median is reported.")
 
     path = find_dataset()
     sep = detect_separator(path)
@@ -197,18 +196,19 @@ def main() -> None:
     scaled = make_scaled_copy(path, sep)
     all_rows += run_benchmark(scaled, sep, f"scaled to ~{SCALED_ROWS:,} rows")
 
-    banner("LAZY API")
+    print_section("LAZY API")
     lazy_ms, lazy_result = time_it(lambda: polars_lazy_group(scaled, sep))
-    print(f"scan_csv -> filter -> group_by -> collect on the scaled file: "
-          f"{lazy_ms:.1f} ms")
-    print("Lazy mode lets Polars push the filter down into the CSV scan, so rows "
-          "that fail the predicate are never fully materialised.")
+    print(f"scan_csv -> filter -> group_by -> collect on the scaled file: " f"{lazy_ms:.1f} ms")
+    print(
+        "Lazy mode lets Polars push the filter down into the CSV scan, so rows "
+        "that fail the predicate are never fully materialised."
+    )
     print(lazy_result)
 
     summary = pd.DataFrame(all_rows)[["scale", "operation", "pandas_ms", "polars_ms", "speedup"]]
-    summary.to_csv(Path(__file__).parent / "benchmark_results.csv", index=False)
+    summary.to_csv(PROJECT_ROOT / "benchmark_results.csv", index=False)
 
-    banner("SUMMARY")
+    print_section("SUMMARY")
     print(summary.round(3).to_string(index=False))
     print("\nWritten to benchmark_results.csv -- paste these numbers into the README.")
 
