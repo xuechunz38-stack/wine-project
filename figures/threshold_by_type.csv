@@ -1,0 +1,3 @@
+group,threshold,n_wines,n_good,n_flagged,good_found,precision,recall,roc_auc
+red,0.25,275,37,56,30,0.536,0.811,0.93
+white,0.25,789,165,251,124,0.494,0.752,0.858
